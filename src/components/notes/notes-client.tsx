@@ -19,6 +19,8 @@ export function NotesClient() {
   const [activeFolder, setActiveFolder] = useState<string>("General");
   const [activeNote, setActiveNote] = useState<any>(null);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({ "General": true });
+  const [customFolders, setCustomFolders] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   
   // Editor State
   const [isEditing, setIsEditing] = useState(false);
@@ -51,9 +53,13 @@ export function NotesClient() {
     },
     enabled: !!selectedProjectId
   });
-  const notes = notesData || [];
-
-  const folders = Array.from(new Set(notes.map((n: any) => n.folder || "General")));
+  
+  const filteredNotes = (notesData || []).filter((n: any) => 
+    n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (n.content && n.content.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+  
+  const folders = Array.from(new Set([...filteredNotes.map((n: any) => n.folder || "General"), ...customFolders]));
   if (!folders.includes("General")) folders.push("General");
 
   const saveNoteMutation = useMutation({
@@ -99,9 +105,18 @@ export function NotesClient() {
     });
   };
 
-  const startNewNote = () => {
+  const handleCreateFolder = () => {
+    const name = prompt("Enter folder name:");
+    if (name && name.trim() !== "") {
+      const trimmed = name.trim();
+      setCustomFolders(prev => Array.from(new Set([...prev, trimmed])));
+      setExpandedFolders(prev => ({ ...prev, [trimmed]: true }));
+    }
+  };
+
+  const startNewNote = (folder?: string) => {
     setActiveNote(null);
-    setEditForm({ title: "", content: "", tags: "", folder: activeFolder });
+    setEditForm({ title: "", content: "", tags: "", folder: folder || activeFolder });
     setIsEditing(true);
   };
 
@@ -128,26 +143,48 @@ export function NotesClient() {
         <div className="p-4 border-b border-border flex justify-between items-center">
           <span className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">Explorer</span>
           <div className="flex gap-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={startNewNote}>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={handleCreateFolder} title="New Folder">
+              <FolderPlus className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => startNewNote()} title="New Note">
               <FilePlus className="w-3.5 h-3.5" />
             </Button>
           </div>
+        </div>
+        <div className="px-4 py-2 border-b border-border">
+          <input 
+            type="text"
+            placeholder="Search notes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs outline-none focus:border-primary transition-colors placeholder:text-muted-foreground/50"
+          />
         </div>
         <div className="flex-1 overflow-y-auto p-2 font-mono text-sm text-muted-foreground">
           {isLoading ? (
             <div className="p-4 text-center text-xs opacity-50">Loading notes...</div>
           ) : folders.map((folder: any) => {
-            const folderNotes = notes.filter((n: any) => (n.folder || "General") === folder);
+            const folderNotes = filteredNotes.filter((n: any) => (n.folder || "General") === folder);
             const isExpanded = !!expandedFolders[folder];
             return (
               <div key={folder} className="mb-1">
                 <div 
-                  className="flex items-center p-1.5 cursor-pointer rounded hover:bg-muted/50 transition-colors"
+                  className="flex items-center justify-between p-1.5 cursor-pointer rounded hover:bg-muted/50 transition-colors group"
                   onClick={() => toggleFolder(folder)}
                 >
-                  {isExpanded ? <ChevronDown className="w-4 h-4 mr-1" /> : <ChevronRight className="w-4 h-4 mr-1" />}
-                  <Folder className="w-4 h-4 mr-2 text-primary" />
-                  <span>{folder}</span>
+                  <div className="flex items-center overflow-hidden">
+                    {isExpanded ? <ChevronDown className="w-4 h-4 mr-1 shrink-0" /> : <ChevronRight className="w-4 h-4 mr-1 shrink-0" />}
+                    <Folder className="w-4 h-4 mr-2 text-primary shrink-0" />
+                    <span className="truncate">{folder}</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" 
+                    onClick={(e) => { e.stopPropagation(); startNewNote(folder); }}
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
                 </div>
                 {isExpanded && (
                   <div className="pl-6">
