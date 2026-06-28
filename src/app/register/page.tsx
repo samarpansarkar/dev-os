@@ -14,16 +14,41 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const [error, setError] = useState("");
+
   const handleCredentialsRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
+
     try {
-      // Mocking registration by just logging in with the credentials
-      await signIn("credentials", {
+      // 1. Register the user in the database
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: fullName, email, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Registration failed.");
+      }
+
+      // 2. Sign in with the newly created credentials
+      const signInRes = await signIn("credentials", {
         email,
         password,
-        callbackUrl: "/dashboard",
+        redirect: false,
       });
+
+      if (signInRes?.error) {
+        throw new Error("Failed to log in after registration.");
+      }
+      
+      // Automatically redirect to dashboard (or use router.push if imported)
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -86,6 +111,11 @@ export default function RegisterPage() {
         </div>
 
         {/* Registration Form */}
+        {error && (
+          <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md border border-destructive/20 text-center">
+            {error}
+          </div>
+        )}
         <form className="flex flex-col gap-4" onSubmit={handleCredentialsRegister}>
           {/* Full Name Field */}
           <div className="flex flex-col gap-1.5 relative group">

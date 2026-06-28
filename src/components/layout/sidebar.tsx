@@ -47,7 +47,7 @@ export function Sidebar({ className }: { className?: string }) {
           Settings
         </Link>
         <Link
-          href="/profile"
+          href="/dashboard/profile"
           className="flex items-center gap-3 px-3 py-2 mt-1 text-sm font-medium rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
         >
           <User className="w-5 h-5 opacity-70" />
