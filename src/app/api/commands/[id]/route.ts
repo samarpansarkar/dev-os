@@ -4,17 +4,17 @@ import { Command } from '@/models/Command';
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
-    const id = params.id;
+    const id = (await params).id;
     const body = await req.json();
 
     const updatedCommand = await Command.findByIdAndUpdate(
       id,
       { $set: body },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).populate('categoryId');
 
     if (!updatedCommand) {
@@ -36,11 +36,11 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
-    const id = params.id;
+    const id = (await params).id;
 
     const deletedCommand = await Command.findByIdAndDelete(id);
 

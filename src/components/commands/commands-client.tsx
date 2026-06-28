@@ -188,14 +188,14 @@ export function CommandsClient() {
       {/* Create Modal Overlay */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-xl overflow-hidden flex flex-col">
+          <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-xl flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center p-4 border-b border-border">
               <h2 className="text-xl font-bold">{isEditing ? 'Edit Command' : 'New Command'}</h2>
               <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)}>
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <form onSubmit={handleSave} className="p-4 space-y-4">
+            <form onSubmit={handleSave} className="p-4 space-y-4 overflow-y-auto scrollbar-hide">
               <div>
                 <label className="text-sm font-semibold mb-1 block">Title</label>
                 <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-background border border-border rounded p-2" />
