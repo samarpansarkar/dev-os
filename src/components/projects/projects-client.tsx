@@ -287,7 +287,7 @@ export function ProjectsClient() {
     e.target.value = '';
   };
 
-  const filteredProjects = projects.filter(p => 
+  const filteredProjects = projects.filter((p: any) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (p.techStack && p.techStack.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase())))
@@ -528,7 +528,7 @@ export function ProjectsClient() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((project) => (
+            {filteredProjects.map((project: any) => (
               <div 
                 key={project._id}
                 className="bg-card border border-border rounded-xl flex flex-col relative overflow-hidden group hover:border-primary/50 transition-colors"

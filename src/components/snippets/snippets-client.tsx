@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react";
 import { Plus, Search, Folder, Terminal, Eye, Share, Copy, Sparkles, X, Save, Edit2, Trash2, PanelLeft, LayoutList, PanelLeftClose, ChevronLeft, Code, FileText, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function SnippetsClient() {
-  const [snippets, setSnippets] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  
+  const queryClient = useQueryClient();
+
+  const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [activeSnippet, setActiveSnippet] = useState<any | null>(null);
 
@@ -30,75 +30,83 @@ export function SnippetsClient() {
     blocks: [{ type: "code", content: "", language: "typescript", filename: "index.ts" }]
   });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [catRes, snipRes] = await Promise.all([
-        fetch('/api/categories'),
-        fetch(`/api/snippets${activeCategory !== 'all' ? `?category=${activeCategory}` : ''}`)
-      ]);
-      const catData = await catRes.json();
-      const snipData = await snipRes.json();
-      
-      if (catData.success) setCategories(catData.data);
-      if (snipData.success) {
-        setSnippets(snipData.data);
-        if (snipData.data.length > 0 && !activeSnippet) {
-          setActiveSnippet(snipData.data[0]);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const res = await fetch('/api/categories');
+      const json = await res.json();
+      return json.data || [];
     }
-  };
+  });
+  const categories = categoriesData || [];
+
+  const { data: snippetsData, isLoading: loading } = useQuery({
+    queryKey: ['snippets', activeCategory],
+    queryFn: async () => {
+      const res = await fetch(`/api/snippets${activeCategory !== 'all' ? `?category=${activeCategory}` : ''}`);
+      const json = await res.json();
+      return json.data || [];
+    }
+  });
+  const snippets = snippetsData || [];
 
   useEffect(() => {
-    fetchData();
-  }, [activeCategory]);
+    if (snippets.length > 0 && !activeSnippet) {
+      setActiveSnippet(snippets[0]);
+    }
+  }, [snippets, activeSnippet]);
+
+  const filteredSnippets = snippets.filter((s: any) => 
+    s.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = isEditing ? `/api/snippets/${isEditing}` : '/api/snippets';
-    const method = isEditing ? 'PUT' : 'POST';
-    
-    try {
+  const saveSnippetMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const url = isEditing ? `/api/snippets/${isEditing}` : '/api/snippets';
+      const method = isEditing ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          tags: formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-        })
+        body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      return await res.json();
+    },
+    onSuccess: (data) => {
       if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['snippets'] });
         setIsModalOpen(false);
         setIsEditing(null);
-        fetchData();
       }
-    } catch (error) {
-      console.error(error);
     }
+  });
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveSnippetMutation.mutate({
+      ...formData,
+      tags: typeof formData.tags === 'string' ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.tags
+    });
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const deleteSnippetMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/snippets/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['snippets'] });
+      if (activeSnippet?._id === id) setActiveSnippet(null);
+    }
+  });
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm('Are you sure you want to delete this snippet?')) return;
-    try {
-      const res = await fetch(`/api/snippets/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (activeSnippet?._id === id) setActiveSnippet(null);
-        fetchData();
-      }
-    } catch (error) {
-      console.error(error);
-    }
+    deleteSnippetMutation.mutate(id);
   };
 
   const openEditModal = (snippet: any, e: React.MouseEvent) => {
@@ -136,8 +144,8 @@ export function SnippetsClient() {
   };
 
   // Derive unique languages
-  const languages = Array.from(new Set(snippets.map(s => s.language))).map(name => {
-    const count = snippets.filter(s => s.language === name).length;
+  const languages = Array.from(new Set(snippets.map((s: any) => s.language))).map((name: any) => {
+    const count = snippets.filter((s: any) => s.language === name).length;
     return { name, count, color: "bg-[#3178C6]" }; // default blue
   });
 
@@ -181,7 +189,7 @@ export function SnippetsClient() {
                   <label className="text-sm font-semibold mb-1 block">Category</label>
                   <select required value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})} className="w-full bg-background border border-border rounded p-2">
                     <option value="">Select a category</option>
-                    {categories.map(c => (
+                    {categories.map((c: any) => (
                       <option key={c._id} value={c._id}>{c.name}</option>
                     ))}
                   </select>
@@ -276,7 +284,7 @@ export function SnippetsClient() {
                   <span>All Snippets</span>
                 </button>
               </li>
-              {categories.map(cat => (
+              {categories.map((cat: any) => (
                 <li key={cat._id}>
                   <button onClick={() => setActiveCategory(cat._id)} className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left text-sm ${activeCategory === cat._id ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
@@ -292,26 +300,37 @@ export function SnippetsClient() {
       {/* Snippet List */}
       {isListOpen && (
         <div className="w-full md:w-[320px] lg:w-[380px] border-r border-border bg-background flex flex-col h-full shrink-0">
-          <div className="p-4 border-b border-border bg-muted/30 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">{activeCategory === 'all' ? 'All Snippets' : categories.find(c => c._id === activeCategory)?.name || 'Snippets'}</h2>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setIsListOpen(false)}>
-                <ChevronLeft className="w-4 h-4" />
+          <div className="p-4 border-b border-border bg-muted/30">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold">{activeCategory === 'all' ? 'All Snippets' : categories.find((c: any) => c._id === activeCategory)?.name || 'Snippets'}</h2>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => setIsListOpen(false)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+              </div>
+              <Button size="icon" variant="default" className="w-8 h-8 rounded-lg shadow-lg shadow-primary/20" onClick={() => {
+                setIsEditing(null);
+                setFormData({
+                  title: "", description: "", language: "TypeScript", categoryId: activeCategory === 'all' ? "" : activeCategory, tags: "", difficulty: "Intermediate",
+                  blocks: [{ type: "code", content: "", language: "typescript", filename: "index.ts" }]
+                });
+                setIsModalOpen(true);
+              }}>
+                <Plus className="w-4 h-4" />
               </Button>
             </div>
-            <Button size="icon" variant="default" className="w-8 h-8 rounded-lg shadow-lg shadow-primary/20" onClick={() => {
-              setIsEditing(null);
-              setFormData({
-                title: "", description: "", language: "TypeScript", categoryId: activeCategory === 'all' ? "" : activeCategory, tags: "", difficulty: "Intermediate",
-                blocks: [{ type: "code", content: "", language: "typescript", filename: "index.ts" }]
-              });
-              setIsModalOpen(true);
-            }}>
-              <Plus className="w-4 h-4" />
-            </Button>
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 w-4 h-4 text-muted-foreground" />
+              <input 
+                placeholder="Search snippets..." 
+                className="w-full pl-8 pr-4 py-2 bg-background border border-border rounded-lg text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {snippets.map((snippet) => (
+            {filteredSnippets.map((snippet: any) => (
               <div 
                 key={snippet._id} 
                 onClick={() => setActiveSnippet(snippet)}

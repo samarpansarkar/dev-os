@@ -5,11 +5,10 @@ import { Terminal, Plus, Search, Play, Copy, Star, History, Trash2, Edit2, X, Ch
 import { Button } from "@/components/ui/button";
 import { ICategory } from "@/models/Category";
 import { ICommand } from "@/models/Command";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function CommandsClient() {
-  const [commands, setCommands] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -35,103 +34,114 @@ export function CommandsClient() {
     color: "#3b82f6"
   });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [catRes, cmdRes] = await Promise.all([
-        fetch('/api/categories'),
-        fetch(`/api/commands${activeCategory !== 'all' ? `?category=${activeCategory}` : ''}`)
-      ]);
-      const catData = await catRes.json();
-      const cmdData = await cmdRes.json();
-      
-      if (catData.success) setCategories(catData.data);
-      if (cmdData.success) setCommands(cmdData.data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const res = await fetch('/api/categories');
+      const json = await res.json();
+      return json.data || [];
     }
-  };
+  });
+  const categories = categoriesData || [];
 
-  useEffect(() => {
-    fetchData();
-  }, [activeCategory]);
+  const { data: commandsData, isLoading: loading } = useQuery({
+    queryKey: ['commands', activeCategory],
+    queryFn: async () => {
+      const res = await fetch(`/api/commands${activeCategory !== 'all' ? `?category=${activeCategory}` : ''}`);
+      const json = await res.json();
+      return json.data || [];
+    }
+  });
+  const commands = commandsData || [];
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = isEditing ? `/api/commands/${isEditing}` : '/api/commands';
-    const method = isEditing ? 'PUT' : 'POST';
-    
-    try {
+  const saveCommandMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const url = isEditing ? `/api/commands/${isEditing}` : '/api/commands';
+      const method = isEditing ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean)
-        })
+        body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      return await res.json();
+    },
+    onSuccess: (data) => {
       if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['commands'] });
         setIsModalOpen(false);
         setIsEditing(null);
         setFormData({ title: "", description: "", variants: [{ name: "Default", command: "" }], categoryId: "", tags: "" });
-        fetchData();
       }
-    } catch (error) {
-      console.error(error);
     }
-  };
+  });
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this command?')) return;
-    try {
-      const res = await fetch(`/api/commands/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchData();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleCategorySave = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const url = isEditingCategory ? `/api/categories/${isEditingCategory}` : '/api/categories';
-    const method = isEditingCategory ? 'PUT' : 'POST';
-    try {
+    saveCommandMutation.mutate({
+      ...formData,
+      tags: typeof formData.tags === 'string' ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.tags
+    });
+  };
+
+  const deleteCommandMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/commands/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commands'] });
+    }
+  });
+
+  const handleDelete = (id: string) => {
+    if (!confirm('Are you sure you want to delete this command?')) return;
+    deleteCommandMutation.mutate(id);
+  };
+
+  const saveCategoryMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const url = isEditingCategory ? `/api/categories/${isEditingCategory}` : '/api/categories';
+      const method = isEditingCategory ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(categoryFormData)
+        body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      return await res.json();
+    },
+    onSuccess: (data) => {
       if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['categories'] });
         setIsCategoryModalOpen(false);
         setIsEditingCategory(null);
         setCategoryFormData({ name: "", description: "", color: "#3b82f6" });
-        fetchData();
       }
-    } catch (error) {
-      console.error(error);
     }
+  });
+
+  const handleSaveCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveCategoryMutation.mutate(categoryFormData);
   };
 
-  const handleCategoryDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this category? All commands within it will also be deleted!')) return;
-    try {
-      const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (activeCategory === id) setActiveCategory('all');
-        fetchData();
-      }
-    } catch (error) {
-      console.error(error);
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+      queryClient.invalidateQueries({ queryKey: ['commands'] });
+      if (activeCategory === id) setActiveCategory('all');
     }
+  });
+
+  const handleDeleteCategory = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this category? All snippets/commands inside will be uncategorized.')) return;
+    deleteCategoryMutation.mutate(id);
   };
 
   const openCategoryEditModal = (cat: any, e: React.MouseEvent) => {
@@ -158,10 +168,10 @@ export function CommandsClient() {
   };
 
   // Filter commands by search query
-  const filteredCommands = commands.filter(cmd => 
+  const filteredCommands = commands.filter((cmd: any) => 
     cmd.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     cmd.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (cmd.variants && cmd.variants.some((v: any) => v.command.toLowerCase().includes(searchQuery.toLowerCase())))
+    cmd.tags.some((tag: any) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const [activeVariants, setActiveVariants] = useState<Record<string, number>>({});
@@ -187,7 +197,7 @@ export function CommandsClient() {
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <form onSubmit={handleCategorySave} className="p-4 space-y-4">
+            <form onSubmit={handleSaveCategory} className="p-4 space-y-4">
               <div>
                 <label className="text-sm font-semibold mb-1 block">Name</label>
                 <input required value={categoryFormData.name} onChange={e => setCategoryFormData({...categoryFormData, name: e.target.value})} className="w-full bg-background border border-border rounded p-2" />
@@ -293,7 +303,7 @@ export function CommandsClient() {
                 <label className="text-sm font-semibold mb-1 block">Category</label>
                 <select required value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})} className="w-full bg-background border border-border rounded p-2">
                   <option value="">Select a category</option>
-                  {categories.map(c => (
+                  {categories.map((c: any) => (
                     <option key={c._id} value={c._id}>{c.name}</option>
                   ))}
                 </select>
@@ -356,7 +366,7 @@ export function CommandsClient() {
               <span className="flex items-center gap-2"><Star className="w-4 h-4" /> All Commands</span>
             </button>
             
-            {categories.map(cat => (
+            {categories.map((cat: any) => (
               <div key={cat._id} className="relative group">
                 <button 
                   onClick={() => setActiveCategory(cat._id)}
@@ -371,7 +381,7 @@ export function CommandsClient() {
                   <button onClick={(e) => openCategoryEditModal(cat, e)} className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/80">
                     <Edit2 className="w-3 h-3" />
                   </button>
-                  <button onClick={(e) => handleCategoryDelete(cat._id, e)} className="p-1 text-destructive hover:bg-destructive/10 rounded">
+                  <button onClick={(e) => handleDeleteCategory(cat._id, e)} className="p-1 text-destructive hover:bg-destructive/10 rounded">
                     <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
@@ -390,7 +400,7 @@ export function CommandsClient() {
                 <p>No commands found.</p>
               </div>
             ) : (
-              filteredCommands.map((cmd) => (
+              filteredCommands.map((cmd: any) => (
                 <div key={cmd._id} className="bg-card/40 backdrop-blur-md border border-border rounded-xl p-5 hover:border-primary/50 transition-colors group">
                   <div className="flex justify-between items-start mb-3">
                     <div>
@@ -438,7 +448,7 @@ export function CommandsClient() {
                         {cmd.categoryId.name}
                       </span>
                     )}
-                    {cmd.tags.map((tag: string, i: number) => (
+                    {cmd.tags.map((tag: any, i: number) => (
                       <span key={i} className="px-2 py-1 rounded bg-muted text-[10px] font-mono text-muted-foreground uppercase tracking-wider font-bold">
                         {tag}
                       </span>
