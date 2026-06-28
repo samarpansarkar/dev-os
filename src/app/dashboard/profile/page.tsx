@@ -39,7 +39,7 @@ export default async function ProfilePage() {
           
           <div className="w-24 h-24 rounded-full bg-secondary/20 flex items-center justify-center border border-border overflow-hidden shrink-0">
             {dbUser.image ? (
-              <Image src={dbUser.image} alt={dbUser.name} width={96} height={96} className="w-full h-full object-cover" />
+              <Image src={dbUser.image} alt={dbUser.name} width={96} height={96} className="w-full h-full object-cover" priority />
             ) : (
               <UserIcon className="w-12 h-12 text-muted-foreground" />
             )}

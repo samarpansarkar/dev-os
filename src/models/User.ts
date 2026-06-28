@@ -23,6 +23,11 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: true,
       default: 'credentials', // 'credentials', 'google', 'github'
+    },
+    bio: {
+      type: String,
+      required: false,
+      default: '',
     }
   },
   { timestamps: true }
