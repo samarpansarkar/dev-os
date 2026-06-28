@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Search, Folder, Terminal, Eye, Share, Copy, Sparkles, X, Save, Edit2, Trash2, GitBranch, ExternalLink, Link2, Key, FileCode2 } from "lucide-react";
+import { Plus, Search, Folder, Terminal, Eye, Share, Copy, Sparkles, X, Save, Edit2, Trash2, GitBranch, ExternalLink, Link2, Key, FileCode2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function ProjectsClient() {
@@ -255,6 +255,43 @@ export function ProjectsClient() {
     setFormData({ ...formData, environmentFiles: newEnvs });
   };
 
+  const handleEnvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      const lines = text.split('\n');
+      const parsedVars = lines
+        .filter(line => line.trim() && !line.trim().startsWith('#'))
+        .map(line => {
+          const [key, ...rest] = line.split('=');
+          return {
+            key: key.trim(),
+            value: rest.join('=').trim().replace(/(^"|"$)|(^'|'$)/g, ''), // remove surrounding quotes
+            description: '',
+            isSecret: true,
+          };
+        })
+        .filter(v => v.key);
+
+      const newEnvs = [...formData.environmentFiles];
+      newEnvs.push({
+        name: file.name,
+        environment: "Development",
+        variables: parsedVars
+      });
+      setFormData({ ...formData, environmentFiles: newEnvs });
+    };
+    reader.readAsText(file);
+    
+    // reset input
+    e.target.value = '';
+  };
+
   const filteredProjects = projects.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -407,7 +444,15 @@ export function ProjectsClient() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center border-b border-border pb-2">
                   <h3 className="text-lg font-semibold">Environment Files</h3>
-                  <Button type="button" variant="outline" size="sm" onClick={addEnvFile}><Plus className="w-3 h-3 mr-1" /> Add Env File</Button>
+                  <div className="flex gap-2">
+                    <label className="cursor-pointer">
+                      <input type="file" accept=".env,.*" className="hidden" onChange={handleEnvFileUpload} />
+                      <div className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3">
+                        <Upload className="w-3 h-3 mr-1" /> Upload .env
+                      </div>
+                    </label>
+                    <Button type="button" variant="outline" size="sm" onClick={addEnvFile}><Plus className="w-3 h-3 mr-1" /> Add Env File</Button>
+                  </div>
                 </div>
                 {formData.environmentFiles.map((env: any, i: number) => (
                   <div key={i} className="bg-muted/10 p-4 rounded-lg border border-border">
