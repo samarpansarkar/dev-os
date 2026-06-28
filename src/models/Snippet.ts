@@ -11,6 +11,7 @@ export interface ISnippet extends mongoose.Document {
   title: string;
   description: string;
   language: string;
+  projectId?: mongoose.Types.ObjectId;
   categoryId: mongoose.Types.ObjectId;
   tags: string[];
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
@@ -41,6 +42,10 @@ const SnippetSchema = new mongoose.Schema<ISnippet>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
       required: [true, 'Please select a category'],
+    },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
     },
     tags: {
       type: [String],

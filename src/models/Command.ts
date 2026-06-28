@@ -5,6 +5,7 @@ export interface ICommand extends mongoose.Document {
   description: string;
   variants: { name: string; command: string }[];
   categoryId: mongoose.Types.ObjectId;
+  projectId?: mongoose.Types.ObjectId;
   tags: string[];
   isFavorite: boolean;
   createdAt: Date;
@@ -43,6 +44,10 @@ const CommandSchema = new mongoose.Schema<ICommand>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
       required: [true, 'Please select a category'],
+    },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
     },
     tags: {
       type: [String],
