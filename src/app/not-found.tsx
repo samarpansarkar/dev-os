@@ -90,7 +90,7 @@ export default function NotFound() {
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
           <Button asChild size="lg" className="w-full sm:w-auto px-8 gap-2">
-            <Link href="/">
+            <Link href="/dashboard">
               <LayoutDashboard className="w-5 h-5" />
               Return to Dashboard
             </Link>
