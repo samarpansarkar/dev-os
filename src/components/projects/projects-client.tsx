@@ -25,6 +25,7 @@ export function ProjectsClient() {
   // Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
+  const [isViewing, setIsViewing] = useState(false);
   
   const [formData, setFormData] = useState<any>({
     name: "",
@@ -178,6 +179,31 @@ export function ProjectsClient() {
     });
     setIsEditing(project._id);
     setIsModalOpen(true);
+  };
+
+  const openViewModal = async (project: any) => {
+    try {
+      const vaultRes = await fetch(`/api/vault?projectId=${project._id}`);
+      const vaultJson = await vaultRes.json();
+      const vaultVariables = vaultJson.data || [];
+      
+      const envFilesWithVars = (project.environmentFiles || []).map((file: any) => {
+        return {
+          ...file,
+          variables: vaultVariables.filter((v: any) => v.envFileId === file._id)
+        };
+      });
+
+      setActiveProject({
+        ...project,
+        environmentFiles: envFilesWithVars
+      });
+      setIsViewing(true);
+    } catch (err) {
+      console.error('Failed to fetch vault variables', err);
+      setActiveProject(project);
+      setIsViewing(true);
+    }
   };
 
   const openNewModal = () => {
@@ -489,6 +515,168 @@ export function ProjectsClient() {
         </div>
       )}
 
+      {/* View Modal */}
+      {isViewing && activeProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card w-full max-w-4xl max-h-[90vh] rounded-xl shadow-2xl border border-border flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b border-border bg-muted/20">
+              <div className="flex items-center gap-3">
+                <div className="text-3xl bg-muted p-2 rounded-lg">{activeProject.icon || "🚀"}</div>
+                <div>
+                  <h2 className="text-2xl font-bold">{activeProject.name}</h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      {activeProject.status}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{activeProject.visibility} Project</span>
+                  </div>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setIsViewing(false)}><X className="w-5 h-5" /></Button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              {activeProject.description && (
+                <div>
+                  <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Description</h3>
+                  <p className="text-foreground">{activeProject.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Links */}
+                {(activeProject.links || []).length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Links</h3>
+                    <div className="space-y-2">
+                      {activeProject.links.map((link: any, i: number) => (
+                        <a key={i} href={link.url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-muted/20 border border-border rounded-lg hover:bg-muted/40 transition-colors group">
+                          <div className="flex items-center gap-2">
+                            <Link2 className="w-4 h-4 text-primary" />
+                            <span className="font-semibold">{link.title}</span>
+                            <span className="text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-background border border-border">{link.type}</span>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Meta */}
+                <div className="space-y-6">
+                  {activeProject.techStack && activeProject.techStack.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Tech Stack</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {activeProject.techStack.map((t: string) => (
+                          <span key={t} className="px-2 py-1 bg-muted rounded text-xs font-mono">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {activeProject.tags && activeProject.tags.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Tags</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {activeProject.tags.map((t: string) => (
+                          <span key={t} className="px-2 py-1 bg-background border border-border rounded text-xs">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Credentials */}
+              {(activeProject.credentials || []).length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Credentials</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeProject.credentials.map((cred: any, i: number) => (
+                      <div key={i} className="p-4 bg-muted/20 border border-border rounded-lg relative group">
+                        <h4 className="font-bold mb-2 flex items-center gap-2"><Key className="w-4 h-4 text-amber-500" /> {cred.title}</h4>
+                        <div className="space-y-1 text-sm font-mono">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">User:</span>
+                            <span className="bg-background px-2 py-0.5 rounded border border-border select-all">{cred.username}</span>
+                          </div>
+                          {cred.password && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Pass:</span>
+                              <div className="flex items-center gap-1">
+                                <span className="bg-background px-2 py-0.5 rounded border border-border blur-sm hover:blur-none transition-all select-all">{cred.password}</span>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => handleCopy(cred.password)}><Copy className="w-3 h-3" /></Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {cred.note && <p className="text-xs text-muted-foreground mt-3 pt-2 border-t border-border/50">{cred.note}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Env Files */}
+              {(activeProject.environmentFiles || []).length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Environment Files</h3>
+                  <div className="space-y-4">
+                    {activeProject.environmentFiles.map((env: any, i: number) => (
+                      <div key={i} className="p-4 bg-muted/10 border border-border rounded-lg">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FileCode2 className="w-4 h-4 text-blue-400" />
+                          <h4 className="font-bold font-mono">{env.name}</h4>
+                          <span className="text-[10px] uppercase border border-border px-1.5 rounded text-muted-foreground bg-background">{env.environment}</span>
+                        </div>
+                        <div className="space-y-1">
+                          {(env.variables || []).map((v: any, vi: number) => (
+                            <div key={vi} className="flex gap-2 items-center text-xs font-mono group/var">
+                              <span className="text-muted-foreground w-1/3 truncate" title={v.key}>{v.key}</span>
+                              <span className="text-muted-foreground">=</span>
+                              {v.isSecret ? (
+                                <span className="flex-1 bg-background px-1.5 py-0.5 rounded border border-border blur-sm hover:blur-none transition-all truncate select-all">{v.value}</span>
+                              ) : (
+                                <span className="flex-1 bg-background px-1.5 py-0.5 rounded border border-border truncate select-all">{v.value}</span>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover/var:opacity-100" onClick={() => handleCopy(v.value)}><Copy className="w-3 h-3" /></Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-border bg-card flex justify-between items-center shrink-0">
+              <div className="flex gap-4">
+                {activeProject.githubUrl && (
+                  <a href={activeProject.githubUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+                    <GitBranch className="w-4 h-4" /> Repository
+                  </a>
+                )}
+                {activeProject.liveUrl && (
+                  <a href={activeProject.liveUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary">
+                    <ExternalLink className="w-4 h-4" /> Production
+                  </a>
+                )}
+                {activeProject.localPath && (
+                  <button onClick={() => handleCopy(activeProject.localPath)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+                    <Terminal className="w-4 h-4" /> Copy Local Path
+                  </button>
+                )}
+              </div>
+              <Button onClick={(e) => { setIsViewing(false); openEditModal(activeProject, e); }} variant="outline">
+                <Edit2 className="w-4 h-4 mr-2" /> Edit Project
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main UI */}
       <div className="max-w-7xl mx-auto space-y-8">
         
@@ -531,7 +719,8 @@ export function ProjectsClient() {
             {filteredProjects.map((project: any) => (
               <div 
                 key={project._id}
-                className="bg-card border border-border rounded-xl flex flex-col relative overflow-hidden group hover:border-primary/50 transition-colors"
+                onClick={() => openViewModal(project)}
+                className="bg-card border border-border rounded-xl flex flex-col relative overflow-hidden group hover:border-primary/50 transition-colors cursor-pointer"
                 style={{ borderTopColor: project.color, borderTopWidth: '4px' }}
               >
                 <div className="p-5 flex-1 flex flex-col">
