@@ -1,7 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
-import { 
-  Home, Folder, FileText, Code, Database, Bug, Book, Settings, User
+import {
+  Home, Folder, FileText, Code, Lock, Bug, Book, Settings, User, Network, Terminal, Waypoints
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -9,9 +9,12 @@ const navItems = [
   { icon: Home, label: "Dashboard", href: "/" },
   { icon: Folder, label: "Projects", href: "/projects" },
   { icon: FileText, label: "Notes", href: "/notes" },
+  { icon: Lock, label: "Vault", href: "/vault" },
   { icon: Code, label: "Snippets", href: "/snippets" },
-  { icon: Database, label: "Environments", href: "/environments" },
+  { icon: Terminal, label: "Commands", href: "/commands" },
   { icon: Bug, label: "Bugs", href: "/bugs" },
+  { icon: Waypoints, label: "API", href: "/api-manager" },
+  { icon: Network, label: "Knowledge Graph", href: "/knowledge-graph" },
   { icon: Book, label: "Learning", href: "/learning" },
 ];
 
@@ -21,7 +24,7 @@ export function Sidebar({ className }: { className?: string }) {
       <div className="flex items-center h-16 px-6 border-b border-sidebar-border">
         <h1 className="text-lg font-bold tracking-tight text-sidebar-primary">DevOS</h1>
       </div>
-      
+
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
           <Link
