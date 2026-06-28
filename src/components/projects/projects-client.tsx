@@ -26,6 +26,17 @@ export function ProjectsClient() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isViewing, setIsViewing] = useState(false);
+
+  const { data: commitsData, isLoading: commitsLoading } = useQuery({
+    queryKey: ['commits', activeProject?._id],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${activeProject._id}/commits`);
+      const json = await res.json();
+      return json.data || [];
+    },
+    enabled: isViewing && (!!activeProject?.localPath || !!activeProject?.githubUrl),
+    retry: false
+  });
   
   const [formData, setFormData] = useState<any>({
     name: "",
@@ -647,6 +658,46 @@ export function ProjectsClient() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Git Commits */}
+              {(activeProject.localPath || activeProject.githubUrl) && (
+                <div>
+                  <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+                    Recent Commits
+                    {commitsData && commitsData.length > 0 && commitsData[0].github && (
+                      <span className="text-[10px] bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded uppercase tracking-wider">GitHub</span>
+                    )}
+                    {commitsData && commitsData.length > 0 && commitsData[0].local && (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded uppercase tracking-wider">Local</span>
+                    )}
+                  </h3>
+                  {commitsLoading ? (
+                    <div className="p-4 bg-muted/10 border border-border rounded-lg text-sm text-muted-foreground animate-pulse">Loading commit history...</div>
+                  ) : commitsData && commitsData.length > 0 ? (
+                    <div className="space-y-3">
+                      {commitsData.map((commit: any) => (
+                        <div key={commit.hash} className="p-3 bg-muted/10 border border-border rounded-lg hover:bg-muted/20 transition-colors flex gap-4 items-start">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm truncate">{commit.subject}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground/80">{commit.authorName}</span>
+                              <span>&bull;</span>
+                              <span>{commit.date}</span>
+                            </div>
+                          </div>
+                          <span className="font-mono text-xs text-primary bg-primary/10 px-2 py-0.5 rounded shrink-0">
+                            {commit.hash.substring(0, 7)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-muted/10 border border-border rounded-lg text-sm text-muted-foreground">
+                      No commits found, or unable to fetch from configured sources.
+                    </div>
+                  )}
                 </div>
               )}
             </div>

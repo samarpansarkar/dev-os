@@ -1,4 +1,10 @@
-import type { NextAuthConfig } from 'next-auth';
+import type { NextAuthConfig, Session } from 'next-auth';
+
+declare module 'next-auth' {
+  interface Session {
+    githubAccessToken?: string;
+  }
+}
 
 export const authConfig = {
   pages: {
@@ -16,15 +22,19 @@ export const authConfig = {
       
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
+      }
+      if (account?.provider === 'github' && account.access_token) {
+        token.githubAccessToken = account.access_token;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
+        session.githubAccessToken = token.githubAccessToken as string | undefined;
       }
       return session;
     }
