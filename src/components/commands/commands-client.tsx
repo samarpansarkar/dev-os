@@ -28,6 +28,7 @@ export function CommandsClient() {
 
   // Category Modal state
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isEditingCategory, setIsEditingCategory] = useState<string | null>(null);
   const [categoryFormData, setCategoryFormData] = useState({
     name: "",
     description: "",
@@ -99,21 +100,49 @@ export function CommandsClient() {
 
   const handleCategorySave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const url = isEditingCategory ? `/api/categories/${isEditingCategory}` : '/api/categories';
+    const method = isEditingCategory ? 'PUT' : 'POST';
     try {
-      const res = await fetch('/api/categories', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(categoryFormData)
       });
       const data = await res.json();
       if (data.success) {
         setIsCategoryModalOpen(false);
+        setIsEditingCategory(null);
         setCategoryFormData({ name: "", description: "", color: "#3b82f6" });
         fetchData();
       }
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleCategoryDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this category? All commands within it will also be deleted!')) return;
+    try {
+      const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (activeCategory === id) setActiveCategory('all');
+        fetchData();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const openCategoryEditModal = (cat: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCategoryFormData({
+      name: cat.name,
+      description: cat.description || "",
+      color: cat.color || "#3b82f6"
+    });
+    setIsEditingCategory(cat._id);
+    setIsCategoryModalOpen(true);
   };
 
   const openEditModal = (cmd: any) => {
@@ -328,16 +357,25 @@ export function CommandsClient() {
             </button>
             
             {categories.map(cat => (
-              <button 
-                key={cat._id}
-                onClick={() => setActiveCategory(cat._id)}
-                className={`w-full text-left px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-between transition-colors ${activeCategory === cat._id ? 'bg-card border-l-2 border-primary text-primary' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'}`}
-              >
-                <span className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                  {cat.name}
-                </span>
-              </button>
+              <div key={cat._id} className="relative group">
+                <button 
+                  onClick={() => setActiveCategory(cat._id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-between transition-colors ${activeCategory === cat._id ? 'bg-card border-l-2 border-primary text-primary' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                    <span className="truncate pr-12">{cat.name}</span>
+                  </span>
+                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={(e) => openCategoryEditModal(cat, e)} className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted/80">
+                    <Edit2 className="w-3 h-3" />
+                  </button>
+                  <button onClick={(e) => handleCategoryDelete(cat._id, e)} className="p-1 text-destructive hover:bg-destructive/10 rounded">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
 
