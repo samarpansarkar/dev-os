@@ -11,13 +11,13 @@ export async function PUT(
     const body = await request.json();
     
     // In Next.js 15 params is a Promise
-    const id = params.id ?? (await params).id;
+    const { id } = await params;
     
     const note = await Note.findByIdAndUpdate(
       id,
       body,
       { new: true, runValidators: true }
-    );
+    ).populate('linkedSnippets');
 
     if (!note) {
       return NextResponse.json({ success: false, error: 'Note not found' }, { status: 404 });
@@ -36,7 +36,7 @@ export async function DELETE(
   try {
     await connectDB();
     
-    const id = params.id ?? (await params).id;
+    const { id } = await params;
     const note = await Note.findByIdAndDelete(id);
 
     if (!note) {

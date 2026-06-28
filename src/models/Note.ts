@@ -6,6 +6,7 @@ export interface INote extends mongoose.Document {
   folder: string;
   tags: string[];
   projectId: mongoose.Types.ObjectId;
+  linkedSnippets: mongoose.Types.ObjectId[];
   isFavorite: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -35,8 +36,13 @@ const NoteSchema = new mongoose.Schema<INote>(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Project',
-      required: true,
+      required: [true, 'Note must belong to a project'],
+      index: true,
     },
+    linkedSnippets: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Snippet'
+    }],
     isFavorite: {
       type: Boolean,
       default: false,
