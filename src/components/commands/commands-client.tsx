@@ -26,6 +26,14 @@ export function CommandsClient() {
     tags: "",
   });
 
+  // Category Modal state
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: "",
+    description: "",
+    color: "#3b82f6"
+  });
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -89,6 +97,25 @@ export function CommandsClient() {
     }
   };
 
+  const handleCategorySave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(categoryFormData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsCategoryModalOpen(false);
+        setCategoryFormData({ name: "", description: "", color: "#3b82f6" });
+        fetchData();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const openEditModal = (cmd: any) => {
     setFormData({
       title: cmd.title,
@@ -121,6 +148,43 @@ export function CommandsClient() {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-8 relative">
+      {/* Category Modal Overlay */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border w-full max-w-sm rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b border-border">
+              <h2 className="text-xl font-bold">New Category</h2>
+              <Button variant="ghost" size="icon" onClick={() => setIsCategoryModalOpen(false)}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            <form onSubmit={handleCategorySave} className="p-4 space-y-4">
+              <div>
+                <label className="text-sm font-semibold mb-1 block">Name</label>
+                <input required value={categoryFormData.name} onChange={e => setCategoryFormData({...categoryFormData, name: e.target.value})} className="w-full bg-background border border-border rounded p-2" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold mb-1 block">Description (optional)</label>
+                <input value={categoryFormData.description} onChange={e => setCategoryFormData({...categoryFormData, description: e.target.value})} className="w-full bg-background border border-border rounded p-2" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold mb-1 block">Color</label>
+                <div className="flex gap-2 items-center">
+                  <input type="color" required value={categoryFormData.color} onChange={e => setCategoryFormData({...categoryFormData, color: e.target.value})} className="bg-background border border-border rounded h-10 w-10 p-1 cursor-pointer" />
+                  <span className="font-mono text-sm text-muted-foreground">{categoryFormData.color}</span>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setCategoryFormData({...categoryFormData, color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')})} className="ml-2">
+                    Random
+                  </Button>
+                </div>
+              </div>
+              <div className="flex justify-end pt-4">
+                <Button type="submit"><Save className="w-4 h-4 mr-2" /> Save Category</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Create Modal Overlay */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -249,7 +313,12 @@ export function CommandsClient() {
           
           {/* Categories Sidebar */}
           <div className="lg:col-span-3 space-y-2">
-            <div className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground mb-4 px-2">Collections</div>
+            <div className="flex justify-between items-center mb-4 px-2">
+              <div className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Collections</div>
+              <button onClick={() => setIsCategoryModalOpen(true)} className="text-muted-foreground hover:text-primary transition-colors" title="Add Category">
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
             
             <button 
               onClick={() => setActiveCategory('all')}
