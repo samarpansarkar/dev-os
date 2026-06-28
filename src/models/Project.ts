@@ -7,10 +7,9 @@ export interface IEnvironmentVariable {
   isSecret?: boolean;
 }
 
-export interface IEnvironmentFile {
+export interface IEnvironmentFile extends mongoose.Types.Subdocument {
   name: string;
   environment: string;
-  variables: IEnvironmentVariable[];
 }
 
 export interface IProjectLink {
@@ -47,23 +46,11 @@ export interface IProject extends mongoose.Document {
   updatedAt: Date;
 }
 
-const EnvironmentVariableSchema = new mongoose.Schema<IEnvironmentVariable>(
-  {
-    key: { type: String, required: true },
-    value: { type: String, required: true },
-    description: { type: String },
-    isSecret: { type: Boolean, default: false },
-  },
-  { _id: false }
-);
-
 const EnvironmentFileSchema = new mongoose.Schema<IEnvironmentFile>(
   {
     name: { type: String, required: true },
     environment: { type: String, required: true },
-    variables: [EnvironmentVariableSchema],
-  },
-  { _id: false }
+  }
 );
 
 const ProjectLinkSchema = new mongoose.Schema<IProjectLink>(

@@ -65,19 +65,56 @@ export function ProjectsClient() {
     const method = isEditing ? 'PUT' : 'POST';
     
     try {
-      const payload = {
+      // 1. Prepare Project payload (without variables inside environmentFiles)
+      const projectPayload = {
         ...formData,
-        techStack: formData.techStack ? formData.techStack.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
-        tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+        techStack: formData.techStack ? (typeof formData.techStack === 'string' ? formData.techStack.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.techStack) : [],
+        tags: formData.tags ? (typeof formData.tags === 'string' ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.tags) : [],
+        environmentFiles: formData.environmentFiles.map((env: any) => ({
+          _id: env._id,
+          name: env.name,
+          environment: env.environment
+        }))
       };
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(projectPayload)
       });
       const data = await res.json();
+      
       if (data.success) {
+        const savedProject = data.data;
+        
+        // 2. Extract variables and sync them to Vault
+        let allVariables: any[] = [];
+        formData.environmentFiles.forEach((env: any, index: number) => {
+          // Get the actual _id assigned by Mongoose for this file
+          const savedEnvFile = savedProject.environmentFiles[index];
+          if (savedEnvFile && env.variables) {
+            env.variables.forEach((v: any) => {
+              allVariables.push({
+                envFileId: savedEnvFile._id,
+                key: v.key,
+                value: v.value,
+                description: v.description,
+                isSecret: v.isSecret
+              });
+            });
+          }
+        });
+
+        // Sync to vault
+        await fetch('/api/vault/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: savedProject._id,
+            variables: allVariables
+          })
+        });
+
         setIsModalOpen(false);
         setIsEditing(null);
         fetchData();
@@ -103,8 +140,29 @@ export function ProjectsClient() {
     }
   };
 
-  const openEditModal = (project: any, e?: React.MouseEvent) => {
+  const openEditModal = async (project: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    
+    // Fetch variables for this project from the vault
+    let vaultVariables = [];
+    try {
+      const res = await fetch(`/api/vault?projectId=${project._id}`);
+      const data = await res.json();
+      if (data.success) {
+        vaultVariables = data.data;
+      }
+    } catch (err) {
+      console.error('Failed to fetch vault variables', err);
+    }
+
+    // Map variables back into their respective environmentFiles for the UI
+    const envFilesWithVars = (project.environmentFiles || []).map((file: any) => {
+      return {
+        ...file,
+        variables: vaultVariables.filter((v: any) => v.envFileId === file._id)
+      };
+    });
+
     setFormData({
       name: project.name,
       slug: project.slug,
@@ -119,7 +177,7 @@ export function ProjectsClient() {
       localPath: project.localPath || "",
       tags: project.tags?.join(', ') || "",
       isFavorite: project.isFavorite || false,
-      environmentFiles: project.environmentFiles || [],
+      environmentFiles: envFilesWithVars,
       links: project.links || [],
       credentials: project.credentials || [],
     });
