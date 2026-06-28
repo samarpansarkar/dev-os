@@ -56,40 +56,40 @@
 }
 
 :root {
-  /* Default to dark mode based on DevOS design */
-  --background: #131315;
-  --foreground: #e5e1e4;
-  --card: #18181B;
-  --card-foreground: #e5e1e4;
-  --popover: #18181B;
-  --popover-foreground: #e5e1e4;
-  --primary: #adc6ff;
-  --primary-foreground: #002e6a;
-  --secondary: #4cd7f6;
-  --secondary-foreground: #003640;
-  --muted: #27272A;
-  --muted-foreground: #A1A1AA;
-  --accent: #353437;
-  --accent-foreground: #e5e1e4;
-  --destructive: #EF4444;
-  --destructive-foreground: #690005;
-  --border: #27272A;
-  --input: #27272A;
-  --ring: #adc6ff;
+  /* Light Mode Palette */
+  --background: #ffffff;
+  --foreground: #09090b;
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #3b82f6;
   --chart-1: #3b82f6;
   --chart-2: #06b6d4;
   --chart-3: #10B981;
   --chart-4: #F59E0B;
   --chart-5: #EF4444;
-  --radius: 0.25rem;
-  --sidebar: #09090B;
-  --sidebar-foreground: #e5e1e4;
-  --sidebar-primary: #adc6ff;
-  --sidebar-primary-foreground: #002e6a;
-  --sidebar-accent: #27272A;
-  --sidebar-accent-foreground: #e5e1e4;
-  --sidebar-border: #27272A;
-  --sidebar-ring: #adc6ff;
+  --radius: 0.5rem;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #3b82f6;
 }
 
 .dark {
@@ -133,5 +133,31 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+  }
+  
+  /* Compact Density Overrides */
+  .density-compact {
+    --radius: 0.15rem;
+  }
+  .density-compact p {
+    @apply text-sm leading-relaxed;
+  }
+  .density-compact .p-4 {
+    @apply p-3;
+  }
+  .density-compact .p-6 {
+    @apply p-4;
+  }
+  .density-compact .p-8 {
+    @apply p-6;
+  }
+  .density-compact .gap-4 {
+    @apply gap-3;
+  }
+  .density-compact .gap-6 {
+    @apply gap-4;
+  }
+  .density-compact .gap-8 {
+    @apply gap-6;
   }
 }
