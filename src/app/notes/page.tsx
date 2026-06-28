@@ -73,8 +73,8 @@ export default function NotesPage() {
 
           <div className="flex-1 overflow-y-auto p-8 lg:p-12 xl:p-16 relative">
             <div className="max-w-3xl mx-auto prose prose-invert prose-p:text-muted-foreground prose-headings:text-primary max-w-none">
-              <h1 className="text-4xl font-bold mb-6 text-foreground outline-none" contentEditable>System Design V2: Migration to Microservices</h1>
-              <p className="text-lg mb-6 outline-none" contentEditable>
+              <h1 className="text-4xl font-bold mb-6 text-foreground outline-none" contentEditable suppressContentEditableWarning>System Design V2: Migration to Microservices</h1>
+              <p className="text-lg mb-6 outline-none" contentEditable suppressContentEditableWarning>
                 This document outlines the proposed architecture for transitioning our monolithic backend into a microservices-based ecosystem. The primary goal is to improve scalability, fault tolerance, and developer velocity.
               </p>
               
