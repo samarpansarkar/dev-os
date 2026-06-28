@@ -1,5 +1,6 @@
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Edit2, FileText, Link as LinkIcon, Plus, Save, Sparkles, Trash2, Code2, ExternalLink } from "lucide-react";
+import { ChevronRight, Edit2, FileText, Link as LinkIcon, Plus, Save, Sparkles, Trash2, Code2, ExternalLink, Bold, Italic, Heading, List, Quote, Code } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -24,6 +25,24 @@ export function NotesContent({
   activeNote, isEditing, editForm, setEditForm,
   setIsEditing, setActiveNote, handleSave, startNewNote, deleteNote
 }: NotesContentProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertFormatting = (prefix: string, suffix: string = '') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = editForm.content.substring(start, end);
+    const newText = editForm.content.substring(0, start) + prefix + selectedText + suffix + editForm.content.substring(end);
+    
+    setEditForm({ ...editForm, content: newText });
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+    }, 0);
+  };
 
   const selectedProjectId = useSelector((state: RootState) => state.global.activeProjectId);
 
@@ -170,7 +189,19 @@ export function NotesContent({
                   ))}
                 </select>
               </div>
+
+              <div className="flex items-center gap-1 bg-muted/30 p-1.5 rounded-lg border border-border w-fit">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => insertFormatting('# ', '')} title="Heading 1"><Heading className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => insertFormatting('**', '**')} title="Bold"><Bold className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => insertFormatting('*', '*')} title="Italic"><Italic className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => insertFormatting('`', '`')} title="Code"><Code className="w-4 h-4" /></Button>
+                <div className="w-px h-4 bg-border mx-1"></div>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => insertFormatting('- ', '')} title="Bullet List"><List className="w-4 h-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => insertFormatting('> ', '')} title="Quote"><Quote className="w-4 h-4" /></Button>
+              </div>
+
               <textarea 
+                ref={textareaRef}
                 value={editForm.content}
                 onChange={e => setEditForm({...editForm, content: e.target.value})}
                 placeholder="Start typing your note here (Markdown supported)..."
