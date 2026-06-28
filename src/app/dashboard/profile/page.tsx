@@ -28,7 +28,7 @@ export default async function ProfilePage() {
   return (
     <div className="flex-1 overflow-y-auto p-8 lg:p-12 xl:p-16 relative">
       <div className="max-w-3xl mx-auto flex flex-col gap-8">
-        
+
         <header className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold text-foreground">My Profile</h1>
           <p className="text-muted-foreground">Manage your account settings and verify database information.</p>
@@ -36,7 +36,7 @@ export default async function ProfilePage() {
 
         {/* Profile Card */}
         <div className="bg-card/50 border border-border backdrop-blur-xl rounded-2xl p-8 flex flex-col sm:flex-row gap-8 items-start sm:items-center shadow-lg">
-          
+
           <div className="w-24 h-24 rounded-full bg-secondary/20 flex items-center justify-center border border-border overflow-hidden shrink-0">
             {dbUser.image ? (
               <Image src={dbUser.image} alt={dbUser.name} width={96} height={96} className="w-full h-full object-cover" priority />
@@ -57,7 +57,7 @@ export default async function ProfilePage() {
             </div>
           </div>
 
-          <div className="bg-success/10 text-success border border-success/20 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase">
+          <div className="bg-green-600 text-success border border-success/20 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase">
             Active User
           </div>
         </div>
