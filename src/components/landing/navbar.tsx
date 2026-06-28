@@ -15,8 +15,8 @@ export function LandingNavbar() {
         <Link href="#docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Docs</Link>
       </div>
       <div className="flex items-center gap-4">
-        <Button variant="outline" className="hidden md:flex h-8 bg-transparent">
-          Log In
+        <Button variant="outline" className="hidden md:flex h-8 bg-transparent" asChild>
+          <Link href="/login">Log In</Link>
         </Button>
         <Button className="h-8" asChild>
           <Link href="/dashboard">Get Started</Link>
