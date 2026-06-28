@@ -18,11 +18,11 @@ if (!cached) {
 }
 
 async function connectDB() {
-  if (cached.conn) {
+  if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn;
   }
 
-  if (!cached.promise) {
+  if (!cached.promise || mongoose.connection.readyState === 0) {
     const opts = {
       bufferCommands: false,
     };

@@ -3,12 +3,16 @@
 import { useState, useEffect } from "react";
 import { Lock, Download, Upload, Plus, Filter, Copy, Eye, EyeOff, Trash2, History, AlertTriangle, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "@/store/store";
+import { setActiveProjectId } from "@/store/slices/globalSlice";
 
 export function VaultClient() {
-  const [projects, setProjects] = useState<any[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [variables, setVariables] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const dispatch = useDispatch();
+  const queryClient = useQueryClient();
+  const selectedProjectId = useSelector((state: RootState) => state.global.activeProjectId);
+
   
   // UI state
   const [activeEnv, setActiveEnv] = useState<string>("");
@@ -24,41 +28,49 @@ export function VaultClient() {
     isSecret: true,
   });
 
-  useEffect(() => {
-    // Fetch projects to populate the dropdown
-    fetch('/api/projects')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data.length > 0) {
-          setProjects(data.data);
-          setSelectedProjectId(data.data[0]._id);
-        }
-      });
-  }, []);
+  // Fetch Projects
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await fetch('/api/projects');
+      const json = await res.json();
+      return json.data || [];
+    }
+  });
+  const projects = projectsData || [];
 
+  // Set default project if none selected
   useEffect(() => {
-    if (!selectedProjectId) return;
-    
-    // Fetch variables for the selected project
-    fetch(`/api/vault?projectId=${selectedProjectId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setVariables(data.data);
-        }
-      });
-      
-    // Fetch audit logs
-    fetch(`/api/vault/audit?projectId=${selectedProjectId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setAuditLogs(data.data);
-        }
-      });
-  }, [selectedProjectId]);
+    if (!selectedProjectId && projects.length > 0) {
+      dispatch(setActiveProjectId(projects[0]._id));
+    }
+  }, [projects, selectedProjectId, dispatch]);
 
-  const activeProject = projects.find(p => p._id === selectedProjectId);
+  // Fetch Vault Variables
+  const { data: variablesData } = useQuery({
+    queryKey: ['vault', selectedProjectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/vault?projectId=${selectedProjectId}`);
+      const json = await res.json();
+      return json.data || [];
+    },
+    enabled: !!selectedProjectId
+  });
+  const variables = variablesData || [];
+
+  // Fetch Audit Logs
+  const { data: auditLogsData } = useQuery({
+    queryKey: ['vaultAudit', selectedProjectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/vault/audit?projectId=${selectedProjectId}`);
+      const json = await res.json();
+      return json.data || [];
+    },
+    enabled: !!selectedProjectId
+  });
+  const auditLogs = auditLogsData || [];
+
+  const activeProject = projects.find((p: any) => p._id === selectedProjectId);
   
   // Extract unique environments from the project's envFiles
   const environments = activeProject?.environmentFiles 
@@ -71,112 +83,94 @@ export function VaultClient() {
     }
   }, [environments, activeEnv]);
 
-  const handleReveal = async (variable: any) => {
+  const createAuditLog = useMutation({
+    mutationFn: async (payload: any) => {
+      await fetch('/api/vault/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vaultAudit', selectedProjectId] });
+    }
+  });
+
+  const handleReveal = (variable: any) => {
     const isRevealed = !!revealedSecrets[variable._id];
     setRevealedSecrets({ ...revealedSecrets, [variable._id]: !isRevealed });
 
     if (!isRevealed) {
-      // Log access
-      await fetch('/api/vault/audit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: selectedProjectId,
-          targetKey: variable.key,
-          action: 'revealed'
-        })
-      });
-      // Refresh audit logs
-      const logsRes = await fetch(`/api/vault/audit?projectId=${selectedProjectId}`);
-      const logsData = await logsRes.json();
-      if (logsData.success) setAuditLogs(logsData.data);
-    }
-  };
-
-  const handleCopy = async (variable: any) => {
-    navigator.clipboard.writeText(variable.value);
-    
-    // Log access
-    await fetch('/api/vault/audit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      createAuditLog.mutate({
         projectId: selectedProjectId,
         targetKey: variable.key,
-        action: 'copied'
-      })
-    });
-    // Refresh audit logs
-    const logsRes = await fetch(`/api/vault/audit?projectId=${selectedProjectId}`);
-    const logsData = await logsRes.json();
-    if (logsData.success) setAuditLogs(logsData.data);
-  };
-
-  const handleDelete = async (variable: any) => {
-    if (!confirm('Are you sure you want to delete this secret?')) return;
-    
-    try {
-      const res = await fetch(`/api/vault/${variable._id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setVariables(variables.filter(v => v._id !== variable._id));
-        
-        // Refresh audit logs
-        const logsRes = await fetch(`/api/vault/audit?projectId=${selectedProjectId}`);
-        const logsData = await logsRes.json();
-        if (logsData.success) setAuditLogs(logsData.data);
-      }
-    } catch (e) {
-      console.error(e);
+        action: 'revealed'
+      });
     }
   };
 
-  const handleCreateSecret = async (e: React.FormEvent) => {
+  const handleCopy = (variable: any) => {
+    navigator.clipboard.writeText(variable.value);
+    
+    createAuditLog.mutate({
+      projectId: selectedProjectId,
+      targetKey: variable.key,
+      action: 'copied'
+    });
+  };
+
+  const deleteSecret = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/vault/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vault', selectedProjectId] });
+      queryClient.invalidateQueries({ queryKey: ['vaultAudit', selectedProjectId] });
+    }
+  });
+
+  const handleDelete = (variable: any) => {
+    if (!confirm('Are you sure you want to delete this secret?')) return;
+    deleteSecret.mutate(variable._id);
+  };
+
+  const createSecret = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch('/api/vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['vault', selectedProjectId] });
+        createAuditLog.mutate({
+          projectId: selectedProjectId,
+          targetKey: data.data.key,
+          action: 'created'
+        });
+        setIsModalOpen(false);
+        setNewSecret({ key: '', value: '', envFileId: '', isSecret: true });
+      }
+    }
+  });
+
+  const handleCreateSecret = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSecret.envFileId) {
       alert("Please select an environment file.");
       return;
     }
-
-    try {
-      const res = await fetch('/api/vault', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: selectedProjectId,
-          ...newSecret
-        })
-      });
-      const data = await res.json();
-      
-      if (data.success) {
-        setVariables([...variables, data.data]);
-        
-        // Log creation
-        await fetch('/api/vault/audit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectId: selectedProjectId,
-            targetKey: data.data.key,
-            action: 'created'
-          })
-        });
-
-        // Refresh audit logs
-        const logsRes = await fetch(`/api/vault/audit?projectId=${selectedProjectId}`);
-        const logsData = await logsRes.json();
-        if (logsData.success) setAuditLogs(logsData.data);
-
-        setIsModalOpen(false);
-        setNewSecret({ key: '', value: '', envFileId: '', isSecret: true });
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    createSecret.mutate({
+      projectId: selectedProjectId,
+      ...newSecret
+    });
   };
 
   // Filter variables by active environment and search query
-  const filteredVariables = variables.filter(v => {
+  const filteredVariables = variables.filter((v: any) => {
     // We need to match the variable's envFileId to the project's envFiles to check the environment
     const file = activeProject?.environmentFiles?.find((f: any) => f._id === v.envFileId);
     if (!file || file.environment !== activeEnv) return false;
@@ -203,12 +197,12 @@ export function VaultClient() {
           {/* Project Selector */}
           <div className="relative group">
             <select 
-              value={selectedProjectId} 
-              onChange={e => setSelectedProjectId(e.target.value)}
+              value={selectedProjectId || ""} 
+              onChange={e => dispatch(setActiveProjectId(e.target.value))}
               className="appearance-none bg-card border border-primary/30 rounded-lg pl-4 pr-10 py-2 text-sm font-semibold focus:outline-none focus:border-primary text-primary transition-colors cursor-pointer"
             >
               <option value="" disabled>Select a Project</option>
-              {projects.map(p => (
+              {projects.map((p: any) => (
                 <option key={p._id} value={p._id}>{p.name}</option>
               ))}
             </select>
@@ -303,7 +297,7 @@ export function VaultClient() {
             </div>
             
             <div className="flex flex-col max-h-[500px] overflow-y-auto">
-              {filteredVariables.map(variable => (
+              {filteredVariables.map((variable: any) => (
                 <div key={variable._id} className="grid grid-cols-[1fr_2fr_auto] gap-4 p-4 border-b border-border items-center hover:bg-muted/50 transition-colors group">
                   <div className="font-mono text-sm text-cyan-400 truncate pr-2">{variable.key}</div>
                   <div className="relative group/value cursor-pointer">
@@ -338,7 +332,7 @@ export function VaultClient() {
                 <History className="text-primary w-5 h-5" /> Access Audit Log
               </h3>
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                {auditLogs.map(log => (
+                {auditLogs.map((log: any) => (
                   <div key={log._id} className="flex items-start gap-4 py-2 border-b border-border/50">
                     <div className="w-6 h-6 rounded-full bg-primary/20 shrink-0 flex items-center justify-center">
                       <span className="text-[10px] font-bold text-primary">{log.user.charAt(0)}</span>

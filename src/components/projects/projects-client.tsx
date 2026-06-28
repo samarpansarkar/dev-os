@@ -3,10 +3,21 @@
 import { useState, useEffect } from "react";
 import { Plus, Search, Folder, Terminal, Eye, Share, Copy, Sparkles, X, Save, Edit2, Trash2, GitBranch, ExternalLink, Link2, Key, FileCode2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function ProjectsClient() {
-  const [projects, setProjects] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  // Fetch Projects using TanStack Query
+  const { data: projectsData, isLoading: loading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await fetch('/api/projects');
+      const json = await res.json();
+      return json.data || [];
+    }
+  });
+  const projects = projectsData || [];
   
   const [searchQuery, setSearchQuery] = useState("");
   const [activeProject, setActiveProject] = useState<any | null>(null);
@@ -34,109 +45,93 @@ export function ProjectsClient() {
     credentials: [],
   });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/projects');
-      const data = await res.json();
-      
-      if (data.success) {
-        setProjects(data.data);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const handleCopy = (text: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     navigator.clipboard.writeText(text);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = isEditing ? `/api/projects/${isEditing}` : '/api/projects';
-    const method = isEditing ? 'PUT' : 'POST';
-    
-    try {
-      // 1. Prepare Project payload (without variables inside environmentFiles)
-      const projectPayload = {
-        ...formData,
-        techStack: formData.techStack ? (typeof formData.techStack === 'string' ? formData.techStack.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.techStack) : [],
-        tags: formData.tags ? (typeof formData.tags === 'string' ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.tags) : [],
-        environmentFiles: formData.environmentFiles.map((env: any) => ({
-          _id: env._id,
-          name: env.name,
-          environment: env.environment
-        }))
-      };
-
+  const saveProjectMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const url = isEditing ? `/api/projects/${isEditing}` : '/api/projects';
+      const method = isEditing ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(projectPayload)
+        body: JSON.stringify(payload.projectPayload)
       });
       const data = await res.json();
-      
-      if (data.success) {
-        const savedProject = data.data;
-        
-        // 2. Extract variables and sync them to Vault
-        let allVariables: any[] = [];
-        formData.environmentFiles.forEach((env: any, index: number) => {
-          // Get the actual _id assigned by Mongoose for this file
-          const savedEnvFile = savedProject.environmentFiles[index];
-          if (savedEnvFile && env.variables) {
-            env.variables.forEach((v: any) => {
-              allVariables.push({
-                envFileId: savedEnvFile._id,
-                key: v.key,
-                value: v.value,
-                description: v.description,
-                isSecret: v.isSecret
-              });
+      if (!data.success) throw new Error(data.error);
+      return { savedProject: data.data, formData: payload.formData };
+    },
+    onSuccess: async (data) => {
+      const { savedProject, formData } = data;
+
+      // Extract variables and sync them to Vault
+      let allVariables: any[] = [];
+      formData.environmentFiles.forEach((env: any, index: number) => {
+        const savedEnvFile = savedProject.environmentFiles[index];
+        if (savedEnvFile && env.variables) {
+          env.variables.forEach((v: any) => {
+            allVariables.push({
+              envFileId: savedEnvFile._id,
+              key: v.key,
+              value: v.value,
+              description: v.description,
+              isSecret: v.isSecret
             });
-          }
-        });
+          });
+        }
+      });
 
-        // Sync to vault
-        await fetch('/api/vault/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectId: savedProject._id,
-            variables: allVariables
-          })
-        });
+      // Sync to vault
+      await fetch('/api/vault/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: savedProject._id,
+          variables: allVariables
+        })
+      });
 
-        setIsModalOpen(false);
-        setIsEditing(null);
-        fetchData();
-      } else {
-        alert(data.error);
-      }
-    } catch (error) {
-      console.error(error);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['vault', savedProject._id] });
+      setIsModalOpen(false);
+      setIsEditing(null);
+    },
+    onError: (err: any) => {
+      alert(err.message);
     }
+  });
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const projectPayload = {
+      ...formData,
+      techStack: formData.techStack ? (typeof formData.techStack === 'string' ? formData.techStack.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.techStack) : [],
+      tags: formData.tags ? (typeof formData.tags === 'string' ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : formData.tags) : [],
+      environmentFiles: formData.environmentFiles.map((env: any) => ({
+        _id: env._id,
+        name: env.name,
+        environment: env.environment
+      }))
+    };
+
+    saveProjectMutation.mutate({ projectPayload, formData });
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    }
+  });
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this project?')) return;
-    try {
-      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (activeProject?._id === id) setActiveProject(null);
-        fetchData();
-      }
-    } catch (error) {
-      console.error(error);
+    if (confirm("Are you sure you want to delete this project?")) {
+      deleteProjectMutation.mutate(id);
     }
   };
 
